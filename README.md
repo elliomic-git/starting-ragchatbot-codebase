@@ -122,83 +122,47 @@ Manages conversation state:
 
 ### Document Ingestion Flow
 
-```
-docs/*.txt files
-       ↓
-DocumentProcessor.process_course_document()  → Course object with metadata
-       ↓
-DocumentProcessor (chunking)                 → List of CourseChunk (800 char segments)
-       ↓
-VectorStore.add_course_metadata()            → course_catalog collection
-VectorStore.add_course_content()             → course_content collection
-       ↓
-ChromaDB (auto-embeds using Sentence Transformers)
+```mermaid
+flowchart TD
+    A[docs/*.txt files] --> B[DocumentProcessor.process_course_document]
+    B --> C[Course object with metadata]
+    C --> D[DocumentProcessor chunking]
+    D --> E[List of CourseChunk<br/>800 char segments]
+    E --> F[VectorStore.add_course_metadata]
+    E --> G[VectorStore.add_course_content]
+    F --> H[(course_catalog collection)]
+    G --> I[(course_content collection)]
+    H --> J[ChromaDB<br/>auto-embeds via Sentence Transformers]
+    I --> J
 ```
 
 ### User Query Flow
 
-```
-┌─────────┐     ┌──────────────┐     ┌─────────┐     ┌───────────┐     ┌─────────────┐     ┌──────────┐     ┌─────────┐
-│  User   │     │   Frontend   │     │ FastAPI │     │ RAGSystem │     │ AIGenerator │     │  Claude  │     │ChromaDB │
-│         │     │  script.js   │     │  app.py │     │           │     │             │     │   API    │     │         │
-└────┬────┘     └──────┬───────┘     └────┬────┘     └─────┬─────┘     └──────┬──────┘     └────┬─────┘     └────┬────┘
-     │                 │                  │                │                  │                 │                │
-     │  Type question  │                  │                │                  │                 │                │
-     │  + click Send   │                  │                │                  │                 │                │
-     │────────────────>│                  │                │                  │                 │                │
-     │                 │                  │                │                  │                 │                │
-     │                 │ POST /api/query  │                │                  │                 │                │
-     │                 │ {query,session_id}                │                  │                 │                │
-     │                 │─────────────────>│                │                  │                 │                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │ rag_system.query(query, session_id)                 │                │
-     │                 │                  │───────────────>│                  │                 │                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │  get_conversation_history()       │                │
-     │                 │                  │                │──────┐           │                 │                │
-     │                 │                  │                │      │           │                 │                │
-     │                 │                  │                │<─────┘           │                 │                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │ generate_response(query, history, tools)            │
-     │                 │                  │                │─────────────────>│                 │                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │                  │ messages.create()               │
-     │                 │                  │                │                  │ (with tools)    │                │
-     │                 │                  │                │                  │────────────────>│                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │                  │   stop_reason:  │                │
-     │                 │                  │                │                  │   "tool_use"    │                │
-     │                 │                  │                │                  │<────────────────│                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │                  │ tool_manager.execute_tool()     │
-     │                 │                  │                │                  │─────────────────────────────────>│
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │                  │                 │  semantic      │
-     │                 │                  │                │                  │                 │  search        │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │                  │   search results (chunks)       │
-     │                 │                  │                │                  │<─────────────────────────────────│
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │                  │ messages.create()               │
-     │                 │                  │                │                  │ (with tool results)             │
-     │                 │                  │                │                  │────────────────>│                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │                  │  final answer   │                │
-     │                 │                  │                │                  │<────────────────│                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │                │    response text │                 │                │
-     │                 │                  │                │<─────────────────│                 │                │
-     │                 │                  │                │                  │                 │                │
-     │                 │                  │  (answer, sources)                │                 │                │
-     │                 │                  │<───────────────│                  │                 │                │
-     │                 │                  │                │                  │                 │                │
-     │                 │ {answer, sources, session_id}    │                  │                 │                │
-     │                 │<─────────────────│                │                  │                 │                │
-     │                 │                  │                │                  │                 │                │
-     │  Display answer │                  │                │                  │                 │                │
-     │  + sources      │                  │                │                  │                 │                │
-     │<────────────────│                  │                │                  │                 │                │
-     │                 │                  │                │                  │                 │                │
+```mermaid
+sequenceDiagram
+    actor User
+    participant Frontend as Frontend<br/>script.js
+    participant API as FastAPI<br/>app.py
+    participant RAG as RAGSystem
+    participant AI as AIGenerator
+    participant Claude as Claude API
+    participant DB as ChromaDB
+
+    User->>Frontend: Type question + click Send
+    Frontend->>API: POST /api/query<br/>{query, session_id}
+    API->>RAG: query(query, session_id)
+    RAG->>RAG: get_conversation_history()
+    RAG->>AI: generate_response(query, history, tools)
+    AI->>Claude: messages.create() with tools
+    Claude-->>AI: stop_reason: "tool_use"
+    AI->>DB: tool_manager.execute_tool()
+    DB-->>AI: search results (chunks)
+    AI->>Claude: messages.create() with tool results
+    Claude-->>AI: final answer
+    AI-->>RAG: response text
+    RAG-->>API: (answer, sources)
+    API-->>Frontend: {answer, sources, session_id}
+    Frontend-->>User: Display answer + sources
 ```
 
 ### Query Flow Step-by-Step
