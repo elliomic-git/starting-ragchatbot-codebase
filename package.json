@@ -1,0 +1,13 @@
+{
+  "name": "course-materials-assistant",
+  "version": "1.0.0",
+  "description": "RAG chatbot for course materials",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

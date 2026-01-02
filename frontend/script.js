@@ -34,9 +34,26 @@ function setupEventListeners() {
     document.querySelectorAll('.suggested-item').forEach(button => {
         button.addEventListener('click', (e) => {
             const question = e.target.getAttribute('data-question');
-            chatInput.value = question;
-            sendMessage();
+            if (question) {
+                chatInput.value = question;
+                sendMessage();
+            }
         });
+    });
+
+    // Lucky Dip - random course selection
+    document.getElementById('luckyDip').addEventListener('click', () => {
+        const courseTitlesElement = document.getElementById('courseTitles');
+        const courseItems = courseTitlesElement.querySelectorAll('.course-title-item');
+
+        if (courseItems.length === 0) {
+            chatInput.value = "What courses are available?";
+        } else {
+            const randomIndex = Math.floor(Math.random() * courseItems.length);
+            const randomCourse = courseItems[randomIndex].textContent;
+            chatInput.value = `Tell me about the course: ${randomCourse}`;
+        }
+        sendMessage();
     });
 }
 
@@ -122,10 +139,17 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     let html = `<div class="message-content">${displayContent}</div>`;
     
     if (sources && sources.length > 0) {
+        const sourceLinks = sources.map(source => {
+            if (source.url) {
+                return `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer" class="source-link">${escapeHtml(source.text)}</a>`;
+            }
+            return `<span class="source-text">${escapeHtml(source.text)}</span>`;
+        }).join('');
+
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${sourceLinks}</div>
             </details>
         `;
     }
